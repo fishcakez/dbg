@@ -1,197 +1,219 @@
 defmodule Dbg.Handler do
 
-  def start(devices, opts) do
+  def start(device) do
     case :dbg.start() do
       { :ok, _ } ->
-        :dbg.tracer(:process, { &__MODULE__.handle_trace/2, { devices, opts } })
+        :dbg.tracer(:process, { &__MODULE__.handle_event/2, device })
       { :error, _reason } = error ->
         error
     end
   end
 
-  def handle_trace(event, { devices, opts }) do
+  def handle_event(event, device) do
+    options = IEx.configuration()
     formatted = try do
-      inspect_event(event)
+      inspect_event(event, options)
     rescue
       _exception ->
-        ["** (Dbg) unknown event: " |
-          inspect(event, records: false, structs: false)]
+        ["unknown event:" | safe_inspect(event, options)]
     end
-    case Enum.filter(devices, &( write(&1, formatted, opts) )) do
-      [] ->
-        exit(:no_devices)
-      devices ->
-        { devices, opts }
-    end
+    write(device, ["** (Dbg) " | formatted], options)
+    device
   end
 
   ## internal
 
-  defp inspect_event({ :trace, pid, tag, arg }) do
-    ["** (Dbg) ", inspect(pid), " " | inspect_trace(tag, arg)]
+  defp inspect_event({ :trace, pid, tag, arg }, options) do
+    [inspect_pid(pid), ?\s | inspect_trace(tag, arg, options)]
   end
 
-  defp inspect_event({ :trace, pid, tag, arg1, arg2 }) do
-    ["** (Dbg) ", inspect(pid), " " | inspect_trace(tag, arg1, arg2)]
+  defp inspect_event({ :trace, pid, tag, arg1, arg2 }, options) do
+    [inspect_pid(pid), ?\s | inspect_trace(tag, arg1, arg2, options)]
   end
 
-  defp inspect_event({ :trace_ts, pid, tag, arg, ts }) do
-    ["** (Dbg) ", inspect(pid), " (at ", inspect_ts(ts), ") " |
-      inspect_trace(tag, arg)]
+  defp inspect_event({ :trace_ts, pid, tag, arg, ts }, options) do
+    [inspect_pid(pid), " (at ", inspect_ts(ts), ") " |
+      inspect_trace(tag, arg, options)]
   end
 
-  defp inspect_event({ :trace_ts, pid, tag, arg1, arg2, ts }) do
-    ["** (Dbg) ", inspect(pid), " (at ", inspect_ts(ts), ") " |
-      inspect_trace(tag, arg1, arg2)]
+  defp inspect_event({ :trace_ts, pid, tag, arg1, arg2, ts }, options) do
+    [inspect_pid(pid), " (at ", inspect_ts(ts), ") " |
+      inspect_trace(tag, arg1, arg2, options)]
   end
 
-  defp inspect_event({ :seq_trace, label, info}) do
-    ["** (Dbg) (Seq: ", inspect(label), ") " | inspect_seq_trace(info)]
+  defp inspect_event({ :seq_trace, label, info}, options) do
+    ["(Seq ", inspect(label), ") " | inspect_seq_trace(info, options)]
   end
 
-  defp inspect_event({ :seq_trace, label, info, ts }) do
-    ["** (Dbg) (Seq: ", inspect(label), ") (at ", inspect_ts(ts), ") " |
-      inspect_seq_trace(info)]
+  defp inspect_event({ :seq_trace, label, info, ts }, options) do
+    ["(Seq ", inspect(label), ") (at ", inspect_ts(ts), ") " |
+      inspect_seq_trace(info, options)]
   end
 
-  defp inspect_event(other) do
-    ["** (Dbg) unknown event: ", safe_inspect(other)]
+  defp inspect_event(other, options) do
+    ["unknown event:" | safe_inspect(other, options)]
   end
 
-  defp inspect_trace(:receive, msg) do
-    ["receives: " | safe_inspect(msg)]
+  defp inspect_trace(:receive, msg, options) do
+    ["receives:" | safe_inspect(msg, options)]
   end
 
-  defp inspect_trace(:call, { mod, fun, args }) do
-    ["calls: " | Exception.format_mfa(mod, fun, args)]
+  defp inspect_trace(:call, { mod, fun, arity }, _options)
+      when is_integer(arity) do
+    ["calls " | Exception.format_mfa(mod, fun, arity)]
   end
 
-  defp inspect_trace(:return_to, { mod, fun, arity }) do
-    ["returns to: " | Exception.format_mfa(mod, fun, arity)]
+  defp inspect_trace(:call, { mod, fun, args }, options) do
+    arity = length(args)
+    ["calls ", Exception.format_mfa(mod, fun, arity), " with arguments:" |
+      safe_inspect(args, options)]
   end
 
-  defp inspect_trace(:exit, reason) do
-    ["exits with reason: ", safe_inspect(reason)]
+  defp inspect_trace(:return_to, { mod, fun, arity }, _options) do
+    ["returns to " | Exception.format_mfa(mod, fun, arity)]
   end
 
-  defp inspect_trace(:link, pid) do
-    ["links to: ", inspect(pid)]
+  defp inspect_trace(:exit, reason, options) do
+    ["exits with reason:" | safe_inspect(reason, options)]
   end
 
-  defp inspect_trace(:unlink, pid) do
-    ["unlinks from: ", inspect(pid)]
+  defp inspect_trace(:link, pid, _options) do
+    ["links to " | inspect_pid(pid)]
   end
 
-  defp inspect_trace(:getting_link, pid) do
-    ["gets linked to: " | inspect(pid)]
+  defp inspect_trace(:unlink, pid, _options) do
+    ["unlinks from " | inspect_pid(pid)]
   end
 
-  defp inspect_trace(:getting_unlink, pid) do
-    ["gets unlinked from: " | inspect(pid)]
+  defp inspect_trace(:getting_link, pid, _options) do
+    ["gets linked to " | inspect_pid(pid)]
   end
 
-  defp inspect_trace(:register, name) do
-    ["registers as: " | inspect(name)]
+  defp inspect_trace(:getting_unlink, pid, _options) do
+    ["gets unlinked from " | inspect_pid(pid)]
   end
 
-  defp inspect_trace(:unregister, name) do
-    ["unregisters as: " | inspect(name)]
+  defp inspect_trace(:register, name, _options) do
+    ["registers as " | to_string(name)]
   end
 
-  defp inspect_trace(:in, { mod, fun, arity }) do
-    ["schedules in with: " | Exception.format_mfa(mod, fun, arity)]
+  defp inspect_trace(:unregister, name, _options) do
+    ["unregisters as " | to_string(name)]
   end
 
-  defp inspect_trace(:in, 0) do
+  defp inspect_trace(:in, { mod, fun, arity }, _options) do
+    ["schedules in with " | Exception.format_mfa(mod, fun, arity)]
+  end
+
+  defp inspect_trace(:in, 0, _options) do
     "schedules in"
   end
 
-  defp inspect_trace(:out, { mod, fun, arity }) do
-    ["schedules out with: " | Exception.format_mfa(mod, fun, arity)]
+  defp inspect_trace(:out, { mod, fun, arity }, _options) do
+    ["schedules out with " | Exception.format_mfa(mod, fun, arity)]
   end
 
-  defp inspect_trace(:out, 0) do
+  defp inspect_trace(:out, 0, _options) do
     "schedules out"
   end
 
-  defp inspect_trace(:gc_start, info) do
-    ["starts garbage collecting: " | inspect(info)]
+  defp inspect_trace(:gc_start, info, options) do
+    ["starts garbage collecting:" | safe_inspect(info, options)]
   end
 
-  defp inspect_trace(:gc_end, info) do
-    ["stops garbage collecting: " | inspect(info)]
+  defp inspect_trace(:gc_end, info, options) do
+    ["stops garbage collecting:" | safe_inspect(info, options)]
   end
 
-  defp inspect_trace(tag, arg) do
-    ["unknown trace event with tag:", inspect(tag), " and info: " |
-      inspect([arg])]
+  defp inspect_trace(tag, arg, options) do
+    ["unknown trace event ", inspect(tag), " with info:" |
+      safe_inspect([arg], options)]
   end
 
-  defp inspect_trace(:send, msg, to) do
-    ["sends (to ", inspect(to), "): " | inspect(msg)]
+  defp inspect_trace(:send, msg, to, options) do
+    ["sends to ", inspect_pid(to), ":" | safe_inspect(msg, options)]
   end
 
-  defp inspect_trace(:send_to_non_existing_pid, msg, to) do
-    ["sends (to non-existing ", inspect(to), "): " | safe_inspect(msg)]
+  defp inspect_trace(:send_to_non_existing_pid, msg, to, options) do
+    ["sends to (non-existing) ", inspect_pid(to), ":" |
+      safe_inspect(msg, options)]
   end
 
-  defp inspect_trace(:return_from, { mod, fun, arity }, res) do
-    [Exception.format_mfa(mod, fun, arity), " returns: " | safe_inspect(res)]
+  defp inspect_trace(:return_from, { mod, fun, arity }, res, options) do
+    [Exception.format_mfa(mod, fun, arity), " returns:" |
+      safe_inspect(res, options)]
   end
 
-  defp inspect_trace(:exception_from, { mod, fun, arity },
-      { :error, exception }) when is_exception(exception) do
-    [Exception.format_mfa(mod, fun, arity), " raises: (",
-      inspect(elem(exception, 0)), ") " |  exception.message]
+  defp inspect_trace(:exception_from, { mod, fun, arity }, { kind, payload },
+      _options) do
+    [Exception.format_mfa(mod, fun, arity), " raises:" |
+      indent(Exception.format_banner(kind, payload, []))]
   end
 
-  defp inspect_trace(:exception_from, { mod, fun, arity }, { :error, error }) do
-    exception = Exception.normalize(:error, error)
-    [Exception.format_mfa(mod, fun, arity), " raises: (",
-      inspect(elem(exception, 0)), ") " |  exception.message]
+  defp inspect_trace(:spawn, pid, { mod, fun, arity }, _options)
+       when is_integer(arity) do
+    ["spawns ", inspect_pid(pid), " with " |
+      Exception.format_mfa(mod, fun, arity)]
   end
 
-  defp inspect_trace(:exception_from, { mod, fun, arity }, { :exit, reason }) do
-    [Exception.format_mfa(mod, fun, arity), " exits with reason: " |
-      safe_inspect(reason)]
+  defp inspect_trace(:spawn, pid, { mod, fun, args }, options) do
+    arity = length(args)
+    ["spawns ", inspect_pid(pid), " with ",
+      Exception.format_mfa(mod, fun, arity), " with arguments:" |
+      safe_inspect(args, options)]
   end
 
-  defp inspect_trace(:exception_from, { mod, fun, arity },
-      { :throw, reason }) do
-    [Exception.format_mfa(mod, fun, arity), " throws: " | safe_inspect(reason)]
-  end
-
-  defp inspect_trace(:spawn, pid, { mod, fun, args }) do
-    formatted_mfa = Exception.format_mfa(mod, fun, args)
-    ["spawns ", inspect(pid), " with: " | formatted_mfa]
+  defp inspect_trace(:call, { mod, fun, arity },
+      <<"=proc:", _rest :: binary >> = dump, options) when is_integer(arity) do
+    ["calls ", Exception.format_mfa(mod, fun, arity) |
+      inspect_dump(dump, options)]
   end
 
   defp inspect_trace(:call, { mod, fun, args },
-      <<"=proc:", _rest :: binary >> = dump) do
-    ["calls: ", Exception.format_mfa(mod, fun, args) | inspect_dump(dump)]
+      <<"=proc:", _rest :: binary >> = dump, options) do
+    arity = length(args)
+    ["calls ", Exception.format_mfa(mod, fun, arity), " with arguments:",
+      safe_inspect(args, options) | inspect_dump(dump, options)]
   end
 
-  defp inspect_trace(tag, arg1, arg2) do
-    ["unknown trace event with tag:", inspect(tag), " and info: " |
-      safe_inspect([arg1, arg2])]
+  defp inspect_trace(:call, { mod, fun, arity },
+      {call_mod, call_fun, call_arity}, options) when is_integer(arity) and
+      is_atom(call_mod) and is_atom(call_fun) and is_integer(call_arity) do
+    ["calls ", Exception.format_mfa(mod, fun, arity) |
+      format_stacktrace([{call_mod, call_fun, call_arity, []}], options)]
   end
 
-  defp inspect_seq_trace({ :send, serial, pid, to, msg }) do
-    [inspect(serial), ": ", inspect(pid), " sends (to ", inspect(to), "): " |
-      safe_inspect(msg)]
+  defp inspect_trace(:call, { mod, fun, args },
+      {call_mod, call_fun, call_arity}, options) when is_atom(call_mod) and
+      is_atom(call_fun) and is_integer(call_arity) do
+    arity = length(args)
+    ["calls ", Exception.format_mfa(mod, fun, arity), " with arguments:",
+      safe_inspect(args, options) |
+      format_stacktrace([{call_mod, call_fun, call_arity, []}], options)]
   end
 
-  defp inspect_seq_trace({ :receive, serial, from, pid, msg }) do
-    [inspect(serial), ": ", inspect(pid), " receives (from ", inspect(from),
-      "): " | safe_inspect(msg)]
+  defp inspect_trace(tag, arg1, arg2, options) do
+    ["unknown trace event ", inspect(tag), " with info:" |
+      safe_inspect([arg1, arg2], options)]
   end
 
-  defp inspect_seq_trace({ :print, serial, pid, _, info}) do
-    [inspect(serial), ": ", inspect(pid), ": " | safe_inspect(info)]
+  defp inspect_seq_trace({ :send, serial, pid, to, msg }, options) do
+    [?(, inspect(serial), ") ", inspect_pid(pid), " sends (to ",
+      inspect_pid(to), "):" | safe_inspect(msg, options)]
   end
 
-  defp inspect_seq_trace(other) do
-    ["unknown seq_trace event: " | safe_inspect(other)]
+  defp inspect_seq_trace({ :receive, serial, from, pid, msg }, options) do
+    [?(, inspect(serial), ") ", inspect_pid(pid), " receives (from ",
+      inspect_pid(from), "):" | safe_inspect(msg, options)]
+  end
+
+  defp inspect_seq_trace({ :print, serial, pid, _, info}, options) do
+    [?(, inspect(serial), ") ", inspect_pid(pid), " prints:" |
+      safe_inspect(info, options)]
+  end
+
+  defp inspect_seq_trace(other, options) do
+    ["unknown seq_trace event:" | safe_inspect(other, options)]
   end
 
   defp inspect_ts(now) do
@@ -199,38 +221,40 @@ defmodule Dbg.Handler do
     :io_lib.format('~2..0b:~2..0b:~2..0b', [hour, min, sec])
   end
 
-  defp write(device, iodata, [:colors | opts]) do
-    write(device, [IO.ANSI.blue(), iodata, IO.ANSI.reset()], opts)
+  defp inspect_pid(pid) when node(pid) === node(), do: inspect(pid)
+  defp inspect_pid(pid), do: [inspect(pid), " (on ", to_string(node(pid)), ?)]
+
+  defp write(device, iodata, options) do
+    colors_options = Keyword.get(options, :colors, [])
+    enabled_color = Keyword.get(colors_options, :enabled, false)
+    info_color = Keyword.get(colors_options, :trace_info, "magenta")
+    iodata = [?\n, IO.ANSI.escape_fragment("%{#{info_color}}", enabled_color),
+      iodata | IO.ANSI.escape_fragment("%{reset}", enabled_color)]
+    :ok = IO.puts(device, iodata)
   end
 
-  defp write(device, iodata, []) do
+  defp safe_inspect(term, options) do
+    inspect_options = Keyword.get(options, :inspect, [])
     try do
-      IO.puts(device, [?\n | iodata])
+      inspect(term, inspect_options)
     else
-      :ok ->
-        true
+      formatted ->
+        indent(formatted)
     catch
       _, _ ->
-        false
+        inspect(term, [records: false, structs: false] ++ inspect_options)
+        |> indent()
     end
   end
 
-  defp safe_inspect(term) do
-    try do
-      inspect(term)
-    catch
-      _, _ ->
-        inspect(term, records: false, structs: false)
-    end
+  defp indent(formatted) do
+    :binary.split(formatted, [<<?\n>>], [:global])
+    |> Enum.map(&( ["\n    " | &1] ))
   end
 
-  defp inspect_dump(dump) do
-    case parse_dump(dump) do
-      [] ->
-        []
-      stack ->
-        [?\n | format_stacktrace(stack)]
-    end
+  defp inspect_dump(dump, options) do
+    parse_dump(dump)
+    |> format_stacktrace(options)
   end
 
   defp parse_dump(dump) do
@@ -243,10 +267,56 @@ defmodule Dbg.Handler do
       binary_to_integer(arity), []}
   end
 
-  defp format_stacktrace(stack) do
-    formatted = Exception.format_stacktrace(stack)
-    # drop last \n
-    :binary.part(formatted, 0, byte_size(formatted) - 1)
+  # Rest of file based on code from IEx.Evaluator
+  #
+  # Copyright 2012-2013 Plataformatec.
+  #
+  # Licensed under the Apache License, Version 2.0 (the "License");
+  # you may not use this file except in compliance with the License.
+  # You may obtain a copy of the License at
+  #
+  # http://www.apache.org/licenses/LICENSE-2.0
+  #
+  # Unless required by applicable law or agreed to in writing, software
+  # distributed under the License is distributed on an "AS IS" BASIS,
+  # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  # See the License for the specific language governing permissions and
+  # limitations under the License.
+
+  defp format_stacktrace(stack, options) do
+    entries =
+      for entry <- stack do
+        split_entry(Exception.format_stacktrace_entry(entry))
+      end
+
+    width = Enum.reduce entries, 0, fn {app, _}, acc ->
+      max(String.length(app), acc)
+    end
+
+    colors_options = Keyword.get(options, :colors, [])
+    enabled_color = Keyword.get(colors_options, :enabled, false)
+    info_color = Keyword.get(colors_options, :trace_info, "magenta")
+    app_color = Keyword.get(colors_options, :trace_app, "magenta,bright")
+    Enum.map(entries, &(["\n    " |
+      format_entry(&1, width, app_color, info_color, enabled_color)]))
+  end
+
+  defp split_entry(entry) do
+    case entry do
+      "(" <> _ ->
+        case :binary.split(entry, ") ") do
+          [left, right] -> {left <> ")", right}
+          _ -> {"", entry}
+        end
+      _ ->
+        {"", entry}
+    end
+  end
+
+  defp format_entry({app, info}, width, app_color, info_color, enabled_color) do
+    app = String.rjust(app, width)
+    [IO.ANSI.escape("%{#{app_color}}#{app}%{reset}%{#{info_color}} #{info}",
+      enabled_color)]
   end
 
 end

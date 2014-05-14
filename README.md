@@ -14,7 +14,7 @@ Dbg.trace({ :global, :name }, :call)
 Dbg.clear(self())
 
 # Dbg.call/1,2 is similar to :dbg.tp/1,2:
-Dbg.call({Map, new, 0})
+Dbg.call({Map, :new, 0})
 # The first argunment can also be an external fun:
 Dbg.call(&Map.new/0)
 # Or a module:
@@ -44,13 +44,17 @@ Dbg.local_call(&Map.to_list/1)
 # similar too :dbg.ctp/2:
 Dbg.cancel(&Map.to_list/1)
 
+# Dbg.patterns/0 will return a map of the patterns with saved id's for keys,
+# similar to :dbg.ltp/0:
+Dbg.patterns()
+
 # Dbg.reset/0 will cancel all tracing and is equivalent to :dbg.stop_clear/0
 Dbg.reset()
 
 # Dbg.node/1 will start tracing on another node, equivalent to :dbg.n/1:
 Dbg.node(:"node@host")
 
-# Dbg.nodes/0 will list all traced nodes, equivalent to :dbg.ln/1:
+# Dbg.nodes/0 will list all traced nodes, similar to :dbg.ln/1:
 Dbg.nodes()
 
 # Dbg.clear_node/1 will stop tracing on another node, equivalent to
@@ -59,5 +63,6 @@ Dbg.clear_node(:"node@host")
 
 # Because Dbg is a wrapper for :dbg, all :dbg functions will work as normal,
 # except that the trace messages will be formatted by Dbg instead of the
-# default :dbg handler.
+# default :dbg handler. The Dbg handler uses IEx.configuration/0 to format
+# trace messages.
 ```

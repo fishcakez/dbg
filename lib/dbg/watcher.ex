@@ -9,9 +9,7 @@ defmodule Dbg.Watcher do
   def init(_) do
     # trap so can stop :dbg in terminate
     Process.flag(:trap_exit, true)
-    devices = :application.get_env(:dbg, :devices, [:stdio])
-    opts = :application.get_env(:dbg, :options, default_opts())
-    case Dbg.Handler.start(devices, opts) do
+    case start_tracer() do
       { :ok, pid } ->
         { :ok, Process.monitor(pid) }
       { :error, reason } ->
@@ -19,8 +17,14 @@ defmodule Dbg.Watcher do
     end
   end
 
-  def handle_info({ :DOWN, ref, _, _, reason}, ref) do
-    { :stop, { :shutdown, reason }, nil }
+  # :done means tracing finished but Dbg.Handler could have crashed. If so a
+  # warning would be printed.
+  def handle_info({ :DOWN, ref, _, _, :done }, ref) do
+    { :stop, :shutdown, nil }
+  end
+
+  def handle_info({ :DOWN, ref, _, _, reason }, ref) do
+    { :stop, reason, nil }
   end
 
   def handle_info(other, ref) do
@@ -29,18 +33,14 @@ defmodule Dbg.Watcher do
    { :noreply, ref }
   end
 
-  def terminate(_reason, _ref), do: :dbg.stop_clear()
+  def terminate(_reason, nil), do: :ok
+  def terminate(_reason, _ref), do: :ok = :dbg.stop_clear()
 
   ## internal
-  defp default_opts() do
-    if ( IEx.Options.get(:colors) |> Keyword.get(:enabled, false) ) do
-      [:colors]
-    else
-      []
-    end
-  catch
-    :error, _ ->
-      []
+
+  defp start_tracer() do
+    Application.get_env(:dbg, :device, :user)
+      |> Dbg.Handler.start()
   end
 
 end

@@ -3,8 +3,8 @@ defmodule Dbg.Mixfile do
 
   def project do
     [app: :dbg,
-     version: "0.0.1",
-     elixir: "~> 0.13.0-dev",
+     version: "0.0.2",
+     elixir: "~> 0.13.2 or ~> 0.13.3-dev",
      deps: deps]
   end
 
@@ -12,7 +12,7 @@ defmodule Dbg.Mixfile do
   #
   # Type `mix help compile.app` for more information
   def application do
-    [ applications: [:runtime_tools],
+    [ applications: [:iex, :runtime_tools],
       mod: { Dbg.App, [] } ]
   end
 
