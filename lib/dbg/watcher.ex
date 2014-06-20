@@ -1,9 +1,9 @@
 defmodule Dbg.Watcher do
 
-  use GenServer.Behaviour
+  use GenServer
 
   def start_link() do
-    :gen_server.start_link({ :local, __MODULE__ }, __MODULE__, nil, [])
+    GenServer.start_link(__MODULE__, nil, [name: __MODULE__])
   end
 
   def init(_) do

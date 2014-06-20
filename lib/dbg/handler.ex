@@ -263,8 +263,8 @@ defmodule Dbg.Handler do
   end
 
   defp parse_dump_match([_dump_line, mod, fun, arity]) do
-    { binary_to_existing_atom(mod), binary_to_existing_atom(fun),
-      binary_to_integer(arity), []}
+    { String.to_existing_atom(mod), String.to_existing_atom(fun),
+      String.to_integer(arity), []}
   end
 
   # Rest of file based on code from IEx.Evaluator

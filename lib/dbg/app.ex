@@ -1,7 +1,7 @@
 defmodule Dbg.App do
   @moduledoc false
 
-  use Application.Behaviour
+  use Application
 
   def start(_type, _args) do
     Dbg.Supervisor.start_link()

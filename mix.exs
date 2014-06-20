@@ -3,8 +3,8 @@ defmodule Dbg.Mixfile do
 
   def project do
     [app: :dbg,
-     version: "0.0.2",
-     elixir: "~> 0.13.2 or ~> 0.13.3-dev",
+     version: "0.14.0",
+     elixir: "~> 0.14.0",
      deps: deps]
   end
 
