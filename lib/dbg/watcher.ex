@@ -12,8 +12,11 @@ defmodule Dbg.Watcher do
     case start_tracer() do
       { :ok, pid } ->
         { :ok, Process.monitor(pid) }
+      # :dbg already running, wait for it to close.
+      { :error, :already_started } ->
+        { :ok, Process.monitor(:dbg) }
       { :error, reason } ->
-        { :stop, reason }
+        { :stop, reason}
     end
   end
 

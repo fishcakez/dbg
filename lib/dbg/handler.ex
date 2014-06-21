@@ -1,12 +1,7 @@
 defmodule Dbg.Handler do
 
   def start(device) do
-    case :dbg.start() do
-      { :ok, _ } ->
-        :dbg.tracer(:process, { &__MODULE__.handle_event/2, device })
-      { :error, _reason } = error ->
-        error
-    end
+    :dbg.tracer(:process, { &__MODULE__.handle_event/2, device })
   end
 
   def handle_event(event, device) do
