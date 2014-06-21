@@ -85,11 +85,11 @@ defmodule Dbg.Handler do
     ["unlinks from " | inspect_pid(pid)]
   end
 
-  defp inspect_trace(:getting_link, pid, _options) do
+  defp inspect_trace(:getting_linked, pid, _options) do
     ["gets linked to " | inspect_pid(pid)]
   end
 
-  defp inspect_trace(:getting_unlink, pid, _options) do
+  defp inspect_trace(:getting_unlinked, pid, _options) do
     ["gets unlinked from " | inspect_pid(pid)]
   end
 
