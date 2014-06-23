@@ -153,6 +153,20 @@ defmodule Dbg do
   @spec reset() :: :ok
   defdelegate reset(), to: :dbg, as: :stop_clear
 
+  @spec inspect_file(IO.device, Path) :: :ok | {:error, any}
+  def inspect_file(device \\ :standard_io, file) do
+    erl_file = IO.chardata_to_string(file) |> String.to_char_list()
+    # race condition here, pid could close before monitor.
+    pid = :dbg.trace_client(:file, erl_file, Dbg.Handler.spec(device))
+    ref = Process.monitor(pid)
+    receive do
+      {:DOWN, ^ref, _, _, :normal} ->
+        :ok
+      {:DOWN, ^ref, _, _, reason} ->
+        {:error, reason}
+    end
+  end
+
   @doc false
   def transform_ms(match_spec) do
     Enum.map(match_spec, &map_ms/1)

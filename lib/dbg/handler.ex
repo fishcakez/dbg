@@ -1,7 +1,7 @@
 defmodule Dbg.Handler do
 
-  def start(device) do
-    :dbg.tracer(:process, { &__MODULE__.handle_event/2, device })
+  def spec(device) do
+    { &__MODULE__.handle_event/2, device }
   end
 
   def handle_event(event, device) do
@@ -43,6 +43,10 @@ defmodule Dbg.Handler do
   defp inspect_event({ :seq_trace, label, info, ts }, options) do
     ["(Seq ", inspect(label), ") (at ", inspect_ts(ts), ") " |
       inspect_seq_trace(info, options)]
+  end
+
+  defp inspect_event(:end_of_trace, _options) do
+    "end of trace"
   end
 
   defp inspect_event(other, options) do

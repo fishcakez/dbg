@@ -42,8 +42,13 @@ defmodule Dbg.Watcher do
   ## internal
 
   defp start_tracer() do
-    Application.get_env(:dbg, :device, :user)
-      |> Dbg.Handler.start()
+    case Application.get_env(:dbg, :device, :user) do
+      {:file, file} ->
+        erl_file = IO.chardata_to_string(file) |> String.to_char_list()
+        :dbg.tracer(:port, :dbg.trace_port(:file, erl_file))
+      device ->
+        :dbg.tracer(:process, Dbg.Handler.spec(device))
+    end
   end
 
 end
