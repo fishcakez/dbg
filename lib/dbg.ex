@@ -151,7 +151,30 @@ defmodule Dbg do
   end
 
   @spec reset() :: :ok
-  defdelegate reset(), to: :dbg, as: :stop_clear
+  def reset() do
+    flush()
+    Dbg.Watcher.reset()
+  end
+
+  @doc false
+  @spec flush() :: :ok
+  def flush() do
+    # Abuse code that (hopefully) exists on all nodes to ensure traces
+    # delivered. This will fail on all nodes but only after checking traces
+    # delivered
+    nodes = Dbg.nodes()
+    _ = :rpc.multicall(nodes, :dbg, :deliver_and_flush, [:undefined])
+    # flush the local file trace port (if it exists).
+    try do
+      :dbg.flush_trace_port()
+    else
+      _ ->
+        :ok
+    catch
+      :exit, _ ->
+        :ok
+    end
+  end
 
   @spec inspect_file(IO.device, Path) :: :ok | {:error, any}
   def inspect_file(device \\ :standard_io, file) do
