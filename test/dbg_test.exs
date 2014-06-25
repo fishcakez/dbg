@@ -80,6 +80,15 @@ defmodule DbgTest do
       end) =~ ~r/#PID<\d+\.\d+\.\d+> receives:\n    :hello/
   end
 
+  test "Dbg.trace/1 :messages (:send and :receive)" do
+    io = capture_dbg(fn() ->
+        Dbg.trace(:messages)
+        send(self(), :hello)
+      end)
+    assert io =~ ~r/#PID<\d+\.\d+\.\d+> sends to #PID<\d+\.\d+\.\d+>:\n    :hello/
+    assert io =~ ~r/#PID<\d+\.\d+\.\d+> receives:\n    :hello/
+  end
+
   test "Dbg.trace/1 :m (:send and :receive)" do
     io = capture_dbg(fn() ->
         Dbg.trace(:m)
@@ -140,6 +149,13 @@ defmodule DbgTest do
       end)
     assert io  =~ ~r"#PID<\d+\.\d+\.\d+> gets link to #PID<\d+\.\d+\.\d+>"
     assert io  =~ ~r"#PID<\d+\.\d+\.\d+> gets unlink from #PID<\d+\.\d+\.\d+>"
+  end
+
+  test "Dbg.trace/1 :p (:procs) spawn" do
+    assert capture_dbg(fn() ->
+        Dbg.trace(:p)
+        spawn(:erlang, :now, [])
+      end)  =~ ~r"#PID<\d+\.\d+\.\d+> spawns #PID<\d+\.\d+\.\d+> with :erlang.now/0 with arguments:\n    \[\]"
   end
 
   test "Dbg.trace/1 :running in and out" do
