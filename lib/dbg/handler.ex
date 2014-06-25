@@ -68,12 +68,16 @@ defmodule Dbg.Handler do
       safe_inspect(args, options)]
   end
 
+  defp inspect_trace(:return_to, :undefined, _options) do
+    "returns to calling function"
+  end
+
   defp inspect_trace(:return_to, { mod, fun, arity }, _options) do
     ["returns to " | Exception.format_mfa(mod, fun, arity)]
   end
 
   defp inspect_trace(:exit, reason, options) do
-    ["exits with reason:" | safe_inspect(reason, options)]
+    ["exits: " | safe_format_exit(reason, options)]
   end
 
   defp inspect_trace(:link, pid, _options) do
@@ -85,19 +89,19 @@ defmodule Dbg.Handler do
   end
 
   defp inspect_trace(:getting_linked, pid, _options) do
-    ["gets linked to " | inspect_pid(pid)]
+    ["gets link to " | inspect_pid(pid)]
   end
 
   defp inspect_trace(:getting_unlinked, pid, _options) do
-    ["gets unlinked from " | inspect_pid(pid)]
+    ["gets unlink from " | inspect_pid(pid)]
   end
 
   defp inspect_trace(:register, name, _options) do
-    ["registers as " | to_string(name)]
+    ["registers as " | inspect(name)]
   end
 
   defp inspect_trace(:unregister, name, _options) do
-    ["unregisters as " | to_string(name)]
+    ["unregisters as " | inspect(name)]
   end
 
   defp inspect_trace(:in, { mod, fun, arity }, _options) do
@@ -133,7 +137,7 @@ defmodule Dbg.Handler do
     ["sends to ", inspect_pid(to), ":" | safe_inspect(msg, options)]
   end
 
-  defp inspect_trace(:send_to_non_existing_pid, msg, to, options) do
+  defp inspect_trace(:send_to_non_existing_process, msg, to, options) do
     ["sends to (non-existing) ", inspect_pid(to), ":" |
       safe_inspect(msg, options)]
   end
@@ -162,33 +166,16 @@ defmodule Dbg.Handler do
       safe_inspect(args, options)]
   end
 
-  defp inspect_trace(:call, { mod, fun, arity },
-      <<"=proc:", _rest :: binary >> = dump, options) when is_integer(arity) do
+  defp inspect_trace(:call, { mod, fun, arity }, info, options)
+      when is_integer(arity) do
     ["calls ", Exception.format_mfa(mod, fun, arity) |
-      inspect_dump(dump, options)]
+      inspect_call_info(info, options)]
   end
 
-  defp inspect_trace(:call, { mod, fun, args },
-      <<"=proc:", _rest :: binary >> = dump, options) do
+  defp inspect_trace(:call, { mod, fun, args }, info, options) do
     arity = length(args)
     ["calls ", Exception.format_mfa(mod, fun, arity), " with arguments:",
-      safe_inspect(args, options) | inspect_dump(dump, options)]
-  end
-
-  defp inspect_trace(:call, { mod, fun, arity },
-      {call_mod, call_fun, call_arity}, options) when is_integer(arity) and
-      is_atom(call_mod) and is_atom(call_fun) and is_integer(call_arity) do
-    ["calls ", Exception.format_mfa(mod, fun, arity) |
-      format_stacktrace([{call_mod, call_fun, call_arity, []}], options)]
-  end
-
-  defp inspect_trace(:call, { mod, fun, args },
-      {call_mod, call_fun, call_arity}, options) when is_atom(call_mod) and
-      is_atom(call_fun) and is_integer(call_arity) do
-    arity = length(args)
-    ["calls ", Exception.format_mfa(mod, fun, arity), " with arguments:",
-      safe_inspect(args, options) |
-      format_stacktrace([{call_mod, call_fun, call_arity, []}], options)]
+      safe_inspect(args, options) | inspect_call_info(info, options)]
   end
 
   defp inspect_trace(tag, arg1, arg2, options) do
@@ -223,6 +210,20 @@ defmodule Dbg.Handler do
   defp inspect_pid(pid) when node(pid) === node(), do: inspect(pid)
   defp inspect_pid(pid), do: [inspect(pid), " (on ", to_string(node(pid)), ?)]
 
+  # Stacktrace from dump
+  defp inspect_call_info( <<"=proc:", _rest :: binary >> = dump, options) do
+    inspect_dump(dump, options)
+  end
+
+  # rewrite caller as single entry stacktrace
+  defp inspect_call_info({mod, fun, arity}, options)
+      when is_atom(mod) and is_atom(fun) and is_integer(arity) do
+    format_stacktrace([{mod, fun, arity, []}], options)
+  end
+
+  # :undefined caller from tail call, ignore.
+  defp inspect_call_info(:undefined, _options), do: []
+
   defp write(device, iodata, options) do
     colors_options = Keyword.get(options, :colors, [])
     enabled_color = Keyword.get(colors_options, :enabled, false)
@@ -230,6 +231,18 @@ defmodule Dbg.Handler do
     iodata = [?\n, IO.ANSI.escape_fragment("%{#{info_color}}", enabled_color),
       iodata | IO.ANSI.escape_fragment("%{reset}", enabled_color)]
     :ok = IO.puts(device, iodata)
+  end
+
+  defp safe_format_exit(reason, options) do
+    try do
+      Exception.format_exit(reason)
+    else
+      formatted ->
+        formatted
+    catch
+      _, _ ->
+        safe_inspect(reason, options)
+    end
   end
 
   defp safe_inspect(term, options) do
@@ -257,7 +270,7 @@ defmodule Dbg.Handler do
   end
 
   defp parse_dump(dump) do
-    Regex.scan(~r/^0x[0-9a-f]{8,16} Return addr 0x[0-9a-f]{8,16} \((?|([[:lower:]][[:alnum:]@_]*)|\'([^']*)\'):(?|([[:lower:]][[[:alnum:]@_]*)|\'([^']*)\')\/(\d{1,3}) \+ \d+\)$/m, dump)
+    Regex.scan(~r/^(?|CP:|0x[0-9a-f]{8,16} Return addr) 0x[0-9a-f]{8,16} \((?|([[:lower:]][[:alnum:]@_]*)|\'([^']*)\'):(?|([[:lower:]][[[:alnum:]@_]*)|\'([^']*)\')\/(\d{1,3}) \+ \d+\)$/m, dump)
       |> Enum.map(&parse_dump_match/1)
   end
 
@@ -304,7 +317,7 @@ defmodule Dbg.Handler do
     case entry do
       "(" <> _ ->
         case :binary.split(entry, ") ") do
-          [left, right] -> {left <> ")", right}
+          [left, right] -> {left <> ") ", right}
           _ -> {"", entry}
         end
       _ ->
@@ -314,7 +327,7 @@ defmodule Dbg.Handler do
 
   defp format_entry({app, info}, width, app_color, info_color, enabled_color) do
     app = String.rjust(app, width)
-    [IO.ANSI.escape("%{#{app_color}}#{app}%{reset}%{#{info_color}} #{info}",
+    [IO.ANSI.escape("%{#{app_color}}#{app}%{reset}%{#{info_color}}#{info}",
       enabled_color)]
   end
 
