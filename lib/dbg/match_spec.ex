@@ -1,4 +1,5 @@
 defmodule Dbg.MatchSpec do
+  @moduledoc false
 
   @type t :: [{atom | list, list, [Dbg.option] }]
 

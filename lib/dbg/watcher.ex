@@ -1,4 +1,5 @@
 defmodule Dbg.Watcher do
+  @moduledoc false
 
   use GenServer
 

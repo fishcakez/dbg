@@ -1,4 +1,5 @@
 defmodule Dbg.Handler do
+  @moduledoc false
 
   def spec(device) do
     { &__MODULE__.handle_event/2, device }

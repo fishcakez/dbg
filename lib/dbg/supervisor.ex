@@ -1,4 +1,5 @@
 defmodule Dbg.Supervisor do
+  @moduledoc false
 
   use Supervisor
 
