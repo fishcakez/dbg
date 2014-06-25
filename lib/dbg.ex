@@ -5,60 +5,89 @@ defmodule Dbg do
   @typep process :: pid | atom | { :global, term} | { atom, node } |
     { :via, module, term }
   @typep item :: :all | :new | :existing | process
-  @typep flag :: :s | :send | :r | :receive | :m | :messages | :c | :call | :p |
-  :procs | :sos | :setonspawn | :sofs | :setonfirstspawn | :sol | :setonlink |
-  :sofl | :setonfirstlink | :all | :silent | :clear | :garbage_collection |
-  :arity | :running | :return_to | :timestamp
+  @typep flag :: :s | :r | :m | :messages | :c | :p | :sos | :sofs | :sol |
+    :sofl | native_flag
+   @typep native_flag :: :all | :send | :receive | :procs | :call | :silent |
+    :return_to | :running | :garbage_collection | :timestamp |
+    :arity | :set_on_spawn | :set_on_first_spawn |
+    :set_on_link | :set_on_first_link
   @typep option :: :return | :exception | :stack | :caller |
-    { :silent, boolean } | { :enable | :disable, flag } |
-    { :enable | :disable, pid, flag }
+    { :silent, boolean } | { :trace, [flag], [flag]} |
+    { :trace, pid | {:self}, [flag], [flag]} | :clear |
+    { :clear, pid | {:self} }
   @typep fun_call :: fun | module | { module, atom, arity } | { module, atom }
   @typep id :: nil | pos_integer | :c | :x | :cx
   @typep pattern :: fun | Dbg.MatchSpec.t | String.t | id | option | [option]
 
   @spec trace(item, flag | [flag]) :: map
-  def trace(item, flag \\ :all)
+  def trace(item \\ self(), flags)
 
-  def trace(item, flag) when item in [:all, :new, :existing] or is_pid(item) do
+  def trace(item, flags) when item in [:all, :new, :existing] or is_pid(item) do
     try do
-      :dbg.p(item, flag)
+      :dbg.p(item, Dbg.MatchSpec.transform_flags(flags))
     else
       {:ok, result} ->
         parse_result(result)
       {:error, reason} ->
-        exit({reason, {__MODULE__, :trace, [item, flag]}})
+        exit({reason, {__MODULE__, :trace, [item, flags]}})
     catch
       :exit, :dbg_server_crashed ->
-        exit({:dbg_server_crashed, {__MODULE__, :trace, [item, flag]}})
+        exit({:dbg_server_crashed, {__MODULE__, :trace, [item, flags]}})
     end
   end
 
-  def trace(process, flag) do
+  def trace(process, flags) do
     case whereis(process) do
       nil ->
-        exit({:noproc, {__MODULE__, :trace, [process, flag]}})
+        exit({:noproc, {__MODULE__, :trace, [process, flags]}})
       pid when is_pid(pid) ->
         try do
-          :dbg.p(pid, flag)
+          :dbg.p(pid, Dbg.MatchSpec.transform_flags(flags))
         else
           {:ok, result} ->
             parse_result(result)
           {:error, reason} ->
-            exit({reason, {__MODULE__, :trace, [process, flag]}})
+            exit({reason, {__MODULE__, :trace, [process, flags]}})
         catch
           :exit, :dbg_server_crashed ->
-            exit({:dbg_server_crashed, {__MODULE__, :trace, [process, flag]}})
+            exit({:dbg_server_crashed, {__MODULE__, :trace, [process, flags]}})
         end
     end
   end
 
   @spec clear(item) :: map
-  def clear(item \\ :all) do
+  def clear(item \\ self())
+
+  def clear(item) when item in [:all, :new, :existing] or is_pid(item) do
     try do
-      trace(item, :clear)
-    catch
-      :exit, {reason, {__MODULE__, :trace, _args}} ->
+      :dbg.p(item, :clear)
+    else
+      {:ok, result} ->
+        parse_result(result)
+      {:error, reason} ->
         exit({reason, {__MODULE__, :clear, [item]}})
+    catch
+      :exit, :dbg_server_crashed ->
+        exit({:dbg_server_crashed, {__MODULE__, :clear, [item]}})
+    end
+  end
+
+  def clear(process) do
+    case whereis(process) do
+      nil ->
+        exit({:noproc, {__MODULE__, :clear, [process]}})
+      pid when is_pid(pid) ->
+        try do
+          :dbg.p(pid, :clear)
+        else
+          {:ok, result} ->
+            parse_result(result)
+          {:error, reason} ->
+            exit({reason, {__MODULE__, :clear, [process]}})
+        catch
+          :exit, :dbg_server_crashed ->
+            exit({:dbg_server_crashed, {__MODULE__, :clear, [process]}})
+        end
     end
   end
 
@@ -190,11 +219,6 @@ defmodule Dbg do
     end
   end
 
-  @doc false
-  def transform_ms(match_spec) do
-    Enum.map(match_spec, &map_ms/1)
-  end
-
   ## internal
 
   defp whereis(pid) when is_pid(pid), do: pid
@@ -292,8 +316,8 @@ defmodule Dbg do
 
   defp get_pattern(options)
       when is_atom(hd(options)) or
-        elem(hd(options), 0) in [ :silent, :enable, :disable] do
-    [{:_, [], transform_options(options)}]
+        elem(hd(options), 0) in [ :silent, :trace, :clear] do
+    Dbg.MatchSpec.transform([{:_, [], options}])
   end
 
   defp get_pattern(string) when is_binary(string) do
@@ -306,39 +330,7 @@ defmodule Dbg do
   end
 
   defp get_pattern(match_spec) when is_list(match_spec) do
-    transform_ms(match_spec)
-  end
-
-  defp map_ms({ pat, guard, [options] }) when is_list(options) do
-    { pat, guard, transform_options(options) }
-  end
-
-  defp map_ms({ pat, guard, options }) do
-    { pat, guard, transform_options(options) }
-  end
-
-  defp transform_options(options) do
-    Enum.map(options, &transform_option/1)
-  end
-
-  defp transform_option(:return), do: { :return_trace }
-  defp transform_option(:stack), do: { :message, { :process_dump } }
-  defp transform_option(:caller), do: { :message, { :caller } }
-  defp transform_option(:exception), do: { :exception_trace }
-  defp transform_option({ :silent, flag }), do: { :silent, flag }
-  defp transform_option({ :enable, flag }), do: { :enable_trace, flag }
-  defp transform_option({ :disable, flag }), do: { :disable_trace, flag }
-
-  defp transform_option({ :enable, pid, flag }) do
-    { :enable_trace, pid, flag }
-  end
-
-  defp transform_option({ :disable, pid, flag }) do
-    { :disable_trace, pid, flag }
-  end
-
-  defp transform_option(option) do
-    raise ArgumentError, message: "invalid option #{inspect(option)}"
+    Dbg.MatchSpec.transform(match_spec)
   end
 
   defp parse_result(result) do
@@ -369,7 +361,8 @@ defmodule Dbg do
 
   defp patterns({id, binary}, map) do
     try do
-      Map.put(map, id, (:erlang.binary_to_term(binary) |> untransform_ms()))
+      pattern = Dbg.MatchSpec.untransform(:erlang.binary_to_term(binary))
+      Map.put(map, id, pattern)
     catch
       # failed to convert ms body (added using :dbg), ignore.
       :error, _ ->
@@ -377,27 +370,4 @@ defmodule Dbg do
     end
   end
 
-  defp untransform_ms(ms) do
-    for {head, conds, body} <- ms do
-      {head, conds, Enum.map(body, &untransform_option/1)}
-    end
-  end
-
-  defp untransform_option({ :return_trace }), do: :return
-  defp untransform_option({ :message, { :return_trace } }), do: :return
-  defp untransform_option({ :message, { :process_dump } }), do: :stack
-  defp untransform_option({ :message, { :caller } }), do: :caller
-  defp untransform_option({ :exception_trace }), do: :exception
-  defp untransform_option({ :message, { :exception_trace } }), do: :exception
-  defp untransform_option({ :silent, flag }), do: { :silent, flag }
-  defp untransform_option({ :enable_trace, flag }), do: { :enable, flag }
-  defp untransform_option({ :disable_trace, flag }), do: { :enable, flag }
-
-  defp untransform_option({ :enable_trace, pid, flag }) do
-    { :enable, pid, flag }
-  end
-
-  defp untransform_option({ :disable_trace, pid, flag }) do
-    { :disable, pid, flag }
-  end
 end
