@@ -5,8 +5,9 @@ before_install:
     - wget https://github.com/elixir-lang/elixir/releases/download/v0.14.1/Precompiled.zip -O elixir.zip
     - unzip -d elixir elixir.zip
     - export PATH=$(pwd)/elixir/bin:$PATH
+    - epmd -daemon
 script:
-    - mix test
+    - mix test --exclude distributed:true
 notifications:
     recipients:
         - james@fishcakez.com

@@ -882,6 +882,7 @@ defmodule DbgTest do
       fn() -> Dbg.trace(self(), [:bad_flag]) end
   end
 
+  @tag :distributed
   test "Dbg.trace/2 with pid on untraced node" do
     {:ok, slave} = :slave.start_link(:net_adm.localhost(), :"dbg_test_slave")
     # :rex is the :rpc process
@@ -889,6 +890,7 @@ defmodule DbgTest do
         {{:no_tracer_on_node, slave}, {Dbg, :trace, [{:rex, slave}, [:call]]}}
   end
 
+  @tag :distributed
   test "Dbg.node/1" do
     {:ok, slave} = :slave.start_link(:net_adm.localhost(), :"dbg_test_slave")
     assert capture_dbg(fn() ->
