@@ -18,19 +18,19 @@ To see the messages sent my the shell process:
 ```elixir
 Dbg.trace(:send)
 ```
-Clear all trace flags:
+Clear all trace flags for current process:
 ```elixir
 Dbg.clear()
 ```
-To trace a call, add the `:call` flag to a process:
+To trace a call, add the `:call` trace flag to a process:
 ```elixir
 Dbg.trace(self(), :call)
 ```
-Then add the function:
+Then add the function to traced calls:
 ```elixir
 Dbg.call(&Map.new/0)
 ```
-Call the function to see a trace:
+Call the function to see a trace message:
 ```elixir
 Map.new()
 ```
@@ -38,7 +38,7 @@ Cancel tracing for `Map.new/0`:
 ```elixir
 Dbg.cancel(&Map.new/0)
 ```
-And clear the trace flags:
+And clear the trace flags for `self()`:
 ```elixir
 Dbg.clear(self())
 ```
