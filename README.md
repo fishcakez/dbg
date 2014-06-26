@@ -59,6 +59,10 @@ MIX_ENV=docs mix docs
 
 As a dependency to a mix.es file:
 ```elixir
+def application() do
+  [applications: [:dbg]]
+end
+
 def deps() do
   [{:dbg, github: "fishcakez/dbg"}]
 end
