@@ -7,7 +7,7 @@ and receiving messages, spawning, exiting, linking, scheduling and garbage
 collection can be traced across a cluster of nodes using `Dbg`.
 
 ## Try it out
-Or alternatively clone the repo to try it out:
+Clone the repo:
 ```
 git clone https://github.com/fishcakez/dbg.git
 cd dbg
