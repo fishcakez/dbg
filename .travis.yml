@@ -6,7 +6,7 @@ before_install:
     - unzip -d elixir elixir.zip
     - export PATH=$(pwd)/elixir/bin:$PATH
     - epmd -daemon
-    - mix local.hex
+    - mix local.hex --force
 script:
     - mix test --exclude distributed:true
 notifications:
