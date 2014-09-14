@@ -3,8 +3,6 @@ defmodule DbgTest do
 
   setup_all do
     Dbg.reset()
-    {:ok, _} = Node.start(:dbg_test, :shortnames)
-    on_exit(&Node.stop/0)
     case Application.fetch_env(:dbg, :device) do
       {:ok, device} ->
         {:ok, [device: device]}
@@ -884,6 +882,8 @@ defmodule DbgTest do
 
   @tag :distributed
   test "Dbg.trace/2 with pid on untraced node" do
+    {:ok, _} = Node.start(:dbg_test, :shortnames)
+    on_exit(&Node.stop/0)
     {:ok, slave} = :slave.start_link(:net_adm.localhost(), :"dbg_test_slave")
     # :rex is the :rpc process
     assert catch_exit(Dbg.trace({:rex, slave}, [:call])) ==
@@ -892,6 +892,8 @@ defmodule DbgTest do
 
   @tag :distributed
   test "Dbg.node/1" do
+    {:ok, _} = Node.start(:dbg_test, :shortnames)
+    on_exit(&Node.stop/0)
     {:ok, slave} = :slave.start_link(:net_adm.localhost(), :"dbg_test_slave")
     assert capture_dbg(fn() ->
         assert Dbg.node(slave) == :ok
