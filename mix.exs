@@ -4,7 +4,7 @@ defmodule Dbg.Mixfile do
   def project do
     [app: :dbg,
      version: "0.14.3",
-     elixir: "~> 0.14.1",
+     elixir: "~> 1.0.0",
      name: "Dbg",
      source_url: "https://github.com/fishcakez/dbg",
      hompage_url: "https://github.com/fishcakez/dbg",
