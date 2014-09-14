@@ -3,7 +3,7 @@ defmodule Dbg.Mixfile do
 
   def project do
     [app: :dbg,
-     version: "0.14.3",
+     version: "1.0.0",
      elixir: "~> 0.15.0 or ~> 1.0.0 or ~> 1.1.0-dev",
      name: "Dbg",
      source_url: "https://github.com/fishcakez/dbg",
@@ -29,7 +29,7 @@ defmodule Dbg.Mixfile do
   end
 
   defp package do
-    [files: ["lib", "mix.exs", "README.md"],
+    [files: ["lib", "mix.exs", "README.md", "LICENSE"],
       contributors: ["James Fish"],
       licenses: ["Apache 2.0"],
       links: %{"GitHub" => "https://github.com/fishcakez/dbg"}]
