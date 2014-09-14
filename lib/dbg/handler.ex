@@ -208,8 +208,17 @@ defmodule Dbg.Handler do
     :io_lib.format('~2..0b:~2..0b:~2..0b', [hour, min, sec])
   end
 
-  defp inspect_pid(pid) when node(pid) === node(), do: inspect(pid)
-  defp inspect_pid(pid), do: [inspect(pid), " (on ", to_string(node(pid)), ?)]
+  defp inspect_pid({pid, node_name}) do
+    [inspect(pid), " (on ", to_string(node_name), ?)]
+  end
+
+  defp inspect_pid(pid) when node(pid) === node() or is_atom(pid) do
+    inspect(pid)
+  end
+
+  defp inspect_pid(pid) do
+    inspect_pid({pid, node(pid)})
+  end
 
   # Stacktrace from dump
   defp inspect_call_info( <<"=proc:", _rest :: binary >> = dump, options) do
@@ -228,9 +237,9 @@ defmodule Dbg.Handler do
   defp write(device, iodata, options) do
     colors_options = Keyword.get(options, :colors, [])
     enabled_color = Keyword.get(colors_options, :enabled, false)
-    info_color = Keyword.get(colors_options, :trace_info, "magenta")
-    iodata = [?\n, IO.ANSI.escape_fragment("%{#{info_color}}", enabled_color),
-      iodata | IO.ANSI.escape_fragment("%{reset}", enabled_color)]
+    info_color = Keyword.get(colors_options, :trace_info, :magenta)
+    iodata = [?\n, IO.ANSI.format_fragment(info_color, enabled_color),
+      iodata | IO.ANSI.format_fragment(:reset, enabled_color)]
     :ok = IO.puts(device, iodata)
   end
 
@@ -308,8 +317,8 @@ defmodule Dbg.Handler do
 
     colors_options = Keyword.get(options, :colors, [])
     enabled_color = Keyword.get(colors_options, :enabled, false)
-    info_color = Keyword.get(colors_options, :trace_info, "magenta")
-    app_color = Keyword.get(colors_options, :trace_app, "magenta,bright")
+    info_color = Keyword.get(colors_options, :trace_info, :magenta)
+    app_color = Keyword.get(colors_options, :trace_app, [:magenta | :bright])
     Enum.map(entries, &(["\n    " |
       format_entry(&1, width, app_color, info_color, enabled_color)]))
   end
@@ -328,8 +337,7 @@ defmodule Dbg.Handler do
 
   defp format_entry({app, info}, width, app_color, info_color, enabled_color) do
     app = String.rjust(app, width)
-    [IO.ANSI.escape("%{#{app_color}}#{app}%{reset}%{#{info_color}}#{info}",
-      enabled_color)]
+    IO.ANSI.format([app_color, app, :reset, info_color, info], enabled_color)
   end
 
 end
