@@ -48,7 +48,7 @@ defmodule Dbg do
 
   `item` takes one of the following forms:
 
-    * `:all` - all current and future pirocesses
+    * `:all` - all current and future processes
     * `:new` - all future processes
     * `:existing` -all current processes
     * `pid` - a process
