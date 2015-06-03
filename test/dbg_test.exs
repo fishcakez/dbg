@@ -2,6 +2,11 @@ defmodule DbgTest do
   use ExUnit.Case
 
   setup_all do
+    colors_enabled = IEx.configuration()
+      |> Keyword.get(:colors, [])
+      |> Keyword.get(:enabled, false)
+    on_exit(fn -> IEx.configure([colors: [enabled: colors_enabled]]) end)
+    IEx.configure([colors: [enabled: false]])
     Dbg.reset()
     case Application.fetch_env(:dbg, :device) do
       {:ok, device} ->
