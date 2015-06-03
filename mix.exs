@@ -1,19 +1,19 @@
 defmodule Dbg.Mixfile do
   use Mix.Project
 
-  @version "1.0.0"
+  @version "1.0.1"
 
   def project do
     [app: :dbg,
      version: @version,
-     elixir: "~> 0.15.0 or ~> 1.0.0 or ~> 1.1.0-dev",
+     elixir: "~> 0.15.0 or ~> 1.0",
      name: "Dbg",
-     source_url: "https://github.com/fishcakez/dbg",
      hompage_url: "https://github.com/fishcakez/dbg",
      description: description(),
      package: package(),
      docs: [
        source_ref: "v#{@version}",
+       source_url: "https://github.com/fishcakez/dbg",
        main: Dbg,
      ],
      deps: deps]
