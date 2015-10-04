@@ -14,7 +14,7 @@ cd dbg
 mix compile
 iex -S mix
 ```
-To see the messages sent my the shell process:
+To see the messages sent by the shell process:
 ```elixir
 Dbg.trace(:send)
 ```
