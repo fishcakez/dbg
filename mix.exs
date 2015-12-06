@@ -25,7 +25,10 @@ defmodule Dbg.Mixfile do
   end
 
   defp deps do
-    [{:ex_doc, "~> 0.7", only: [:docs]}]
+    [
+      {:ex_doc, "~> 0.7", only: [:docs]},
+      {:earmark, "~> 0.1", only: [:docs]}
+    ]
   end
 
   defp description do
