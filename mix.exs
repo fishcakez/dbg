@@ -6,7 +6,7 @@ defmodule Dbg.Mixfile do
   def project do
     [app: :dbg,
      version: @version,
-     elixir: "~> 0.15.0 or ~> 1.0",
+     elixir: "~> 1.0",
      name: "Dbg",
      hompage_url: "https://github.com/fishcakez/dbg",
      description: description(),
@@ -26,8 +26,8 @@ defmodule Dbg.Mixfile do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.7", only: [:docs]},
-      {:earmark, "~> 0.1", only: [:docs]}
+      {:ex_doc, "0.11.1", only: [:dev]},
+      {:earmark, "~> 0.1", only: [:dev]}
     ]
   end
 
