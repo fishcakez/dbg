@@ -16,7 +16,7 @@ defmodule Dbg.Mixfile do
        source_url: "https://github.com/fishcakez/dbg",
        main: Dbg,
      ],
-     deps: deps]
+     deps: deps()]
   end
 
   def application do
